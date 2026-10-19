@@ -47,15 +47,37 @@ jobs:
             pkg-config
 
       - name: Install cargo-bundle
+        if: matrix.platform != 'windows'
         run: cargo install cargo-bundle --version 0.12.0 --locked
+
+      - name: Build Windows application
+        if: matrix.platform == 'windows'
+        run: cargo build --release
+
+      - name: Install Inno Setup
+        if: matrix.platform == 'windows'
+        run: choco install innosetup --yes --no-progress
+
+      - name: Set Windows installer version
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Build Windows installer
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $compiler installer/windows/verdant-clock.iss
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
 
       - name: Build Debian package
         if: matrix.platform == 'debian'
         run: cargo bundle --release --format deb
-
-      - name: Build Windows installer
-        if: matrix.platform == 'windows'
-        run: cargo bundle --release --format msi
 
       - name: Build macOS disk image
         if: matrix.platform == 'macos'
@@ -66,7 +88,7 @@ jobs:
         run: |
           mkdir -p dist
           case "${{ matrix.platform }}" in
-            windows) find target/release/bundle -type f -name '*.msi' -exec cp {} dist/ \; ;;
+            windows) test -f dist/Verdant-Clock-Setup.exe ;;
             macos) find target/release/bundle -type f -name '*.dmg' -exec cp {} dist/ \; ;;
             debian) find target/release/bundle -type f -name '*.deb' -exec cp {} dist/ \; ;;
           esac

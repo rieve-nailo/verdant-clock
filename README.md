@@ -43,7 +43,7 @@ cargo build --release
 
 The packaging workflow builds native install files for all three platforms:
 
-- Windows: `.msi` installer
+- Windows: `Verdant-Clock-Setup.exe` installer
 - macOS: `.dmg` disk image containing the app bundle
 - Debian Linux: `.deb` package
 
