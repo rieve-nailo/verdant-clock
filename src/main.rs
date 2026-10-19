@@ -389,7 +389,7 @@ impl ClockApp {
             center,
             radius,
             Stroke::new(
-                2.0,
+                2.0_f32,
                 with_opacity(
                     self.marker_color,
                     self.element_opacity.saturating_mul(80) / 100,
@@ -405,7 +405,7 @@ impl ClockApp {
             painter.line_segment(
                 [inner, outer],
                 Stroke::new(
-                    if is_hour { 2.5 } else { 1.0 },
+                    if is_hour { 2.5 } else { 1.0_f32 },
                     with_opacity(
                         self.marker_color,
                         if is_hour {
