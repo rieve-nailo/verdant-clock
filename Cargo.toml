@@ -18,3 +18,6 @@ eframe = { version = "0.31.1", features = ["persistence"] }
 image = { version = "0.25.5", default-features = false, features = ["bmp", "jpeg", "png", "webp"] }
 rfd = "0.15.3"
 serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

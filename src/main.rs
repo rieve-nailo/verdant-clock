@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -162,6 +164,33 @@ impl ClockApp {
 }
 
 impl eframe::App for ClockApp {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, _raw_input: &mut egui::RawInput) {
+        #[cfg(target_os = "windows")]
+        if self.hide_title_bar {
+            use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+            let Some(inner_rect) = _raw_input.viewport().inner_rect else {
+                return;
+            };
+            let mut cursor = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
+            if unsafe { GetCursorPos(&mut cursor) } == 0 {
+                return;
+            }
+
+            let pixels_per_point = _ctx.pixels_per_point();
+            if !pixels_per_point.is_finite() || pixels_per_point <= 0.0 {
+                return;
+            }
+            let cursor_on_screen = Pos2::new(
+                cursor.x as f32 / pixels_per_point,
+                cursor.y as f32 / pixels_per_point,
+            );
+            if let Some(local_position) = screen_cursor_to_local(cursor_on_screen, inner_rect) {
+                correct_pointer_events(&mut _raw_input.events, local_position);
+            }
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint_after(Duration::from_millis(33));
 
@@ -304,10 +333,13 @@ impl ClockApp {
         ui.checkbox(&mut self.hide_title_bar, "Hide title bar");
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             ui.add_space(8.0);
-            ui.label(
-                egui::RichText::new("Runs on Windows, macOS, and Debian Linux")
-                    .small()
-                    .color(Color32::from_rgb(107, 139, 118)),
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new("Runs on Windows, macOS, and Debian Linux")
+                        .small()
+                        .color(Color32::from_rgb(107, 139, 118)),
+                )
+                .selectable(false),
             );
         });
     }
@@ -464,6 +496,35 @@ impl ClockApp {
             radius * 0.045,
             with_opacity(self.accent_color, self.element_opacity),
         );
+    }
+}
+
+fn screen_cursor_to_local(screen_position: Pos2, inner_rect: Rect) -> Option<Pos2> {
+    inner_rect.contains(screen_position).then(|| {
+        Pos2::new(
+            screen_position.x - inner_rect.min.x,
+            screen_position.y - inner_rect.min.y,
+        )
+    })
+}
+
+fn correct_pointer_events(events: &mut [egui::Event], corrected_position: Pos2) {
+    let Some(current_position) = events.iter().rev().find_map(|event| match event {
+        egui::Event::PointerMoved(position) | egui::Event::PointerButton { pos: position, .. } => {
+            Some(*position)
+        }
+        _ => None,
+    }) else {
+        return;
+    };
+    let correction = corrected_position - current_position;
+
+    for event in events {
+        match event {
+            egui::Event::PointerMoved(position)
+            | egui::Event::PointerButton { pos: position, .. } => *position += correction,
+            _ => {}
+        }
     }
 }
 
@@ -637,6 +698,45 @@ mod tests {
         assert!(should_show_settings(true, true, Some(420.0), true));
         assert!(!should_show_settings(true, true, Some(420.0), false));
         assert!(should_show_settings(false, false, None, false));
+    }
+
+    #[test]
+    fn screen_cursor_maps_to_window_content_coordinates() {
+        let inner_rect = Rect::from_min_size(Pos2::new(100.0, 200.0), Vec2::new(800.0, 600.0));
+        assert_eq!(
+            screen_cursor_to_local(Pos2::new(130.0, 245.0), inner_rect),
+            Some(Pos2::new(30.0, 45.0))
+        );
+        assert_eq!(
+            screen_cursor_to_local(Pos2::new(900.0, 900.0), inner_rect),
+            None
+        );
+    }
+
+    #[test]
+    fn pointer_events_keep_their_relative_positions_when_corrected() {
+        let mut events = vec![
+            egui::Event::PointerMoved(Pos2::new(20.0, 30.0)),
+            egui::Event::PointerButton {
+                pos: Pos2::new(20.0, 30.0),
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::default(),
+            },
+        ];
+
+        correct_pointer_events(&mut events, Pos2::new(20.0, 50.0));
+
+        assert_eq!(events[0], egui::Event::PointerMoved(Pos2::new(20.0, 50.0)));
+        assert_eq!(
+            events[1],
+            egui::Event::PointerButton {
+                pos: Pos2::new(20.0, 50.0),
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::default(),
+            }
+        );
     }
 
     #[test]

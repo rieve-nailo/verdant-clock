@@ -17,7 +17,9 @@ face, its elements, and the window background (0% is transparent; 100% is
 opaque). Auto-hide can be switched off from the settings panel; the panel also
 stays open while a popup such as a color picker is active. A separate setting
 can hide the native title bar. Drag the clock surface to move the window, with
-or without the title bar.
+or without the title bar. On Windows, hidden-title-bar mode maps pointer input
+from the native cursor position to the window's content area to avoid pointer
+offsets.
 
 ## Run
 
